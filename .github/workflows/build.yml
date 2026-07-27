@@ -16,9 +16,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '20'
 
-      - name: Install Bun
+      - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
@@ -28,14 +28,10 @@ jobs:
         run: bun run build
 
       - name: Build Electron EXE
-        run: bunx electron-builder --win
+        run: bunx electron-builder --win --publish never
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Windows-App
-          path: |
-            dist/*.exe
-            release/*.exe
-            out/*.exe
-            build/*.exe
+          path: release/*.exe
