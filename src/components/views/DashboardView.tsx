@@ -25,12 +25,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Metrics
   const todayStr = new Date().toISOString().substring(0, 10);
   
-  const todayInvoices = invoices.filter(i => i.issueDate === todayStr || i.issueDate === '2026-07-23');
-  const todayRevenue = todayInvoices.reduce((sum, i) => sum + i.paidAmount, 0) || 3450;
+  const todayInvoices = invoices.filter(i => i.issueDate === todayStr);
+  const todayRevenue = todayInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
 
   const activeWorkOrders = workOrders.filter(w => w.status === 'in_progress' || w.status === 'pending' || w.status === 'waiting_parts');
   const readyWorkOrders = workOrders.filter(w => w.status === 'ready');
+  const waitingPartsOrders = workOrders.filter(w => w.status === 'waiting_parts');
   const lowStockParts = parts.filter(p => p.status === 'low_stock' || p.status === 'out_of_stock');
+
+  // Compute completion rate
+  const completedCount = workOrders.filter(w => w.status === 'delivered' || w.status === 'ready').length;
+  const completionRate = workOrders.length > 0 ? Math.round((completedCount / workOrders.length) * 100) : 0;
+
+  // Pending parts label
+  const pendingPartsNamesList = waitingPartsOrders.flatMap(w => w.requestedParts?.map(p => p.partName) || []).filter(Boolean);
+  const pendingPartsSummary = pendingPartsNamesList.length > 0 
+    ? pendingPartsNamesList.slice(0, 3).join(' • ') 
+    : 'لا توجد طلبات معلقة';
 
   const statusBadges: Record<string, { label: string; bg: string; text: string }> = {
     pending: { label: 'في الانتظار', bg: 'bg-amber-500/15 border-amber-500/30', text: 'text-amber-400' },
@@ -101,7 +112,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
             <span className="text-emerald-400 font-bold flex items-center gap-0.5">
-              <ArrowUpRight className="w-3.5 h-3.5" /> +12% عن الأمس
+              <ArrowUpRight className="w-3.5 h-3.5" /> {todayInvoices.length > 0 ? `${todayInvoices.length} فواتير مسددة` : 'لا توجد تحصيلات اليوم'}
             </span>
             <span>محدث الآن</span>
           </div>
@@ -117,13 +128,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-extrabold text-white">
-              {activeWorkOrders.length + 8}
+              {activeWorkOrders.length}
             </span>
             <span className="text-xs text-slate-400">بطاقات بالورشة</span>
           </div>
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
-            <span className="text-amber-400 font-bold">{readyWorkOrders.length + 3} جاهزة للتسليم</span>
-            <span>70% الإنجاز</span>
+            <span className="text-amber-400 font-bold">{readyWorkOrders.length} جاهزة للتسليم</span>
+            <span>{completionRate}% الإنجاز</span>
           </div>
         </div>
 
@@ -137,12 +148,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl font-extrabold text-white">
-              {workOrders.filter(w => w.status === 'waiting_parts').length + 1}
+              {waitingPartsOrders.length}
             </span>
             <span className="text-xs text-slate-400">طلبات انتظار</span>
           </div>
-          <div className="mt-3 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 truncate">
-            فلتر زيت • وسادات فرامل • رينة بالات
+          <div className="mt-3 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 truncate" title={pendingPartsSummary}>
+            {pendingPartsSummary}
           </div>
         </div>
 
@@ -192,55 +203,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {/* Table container */}
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="text-slate-400 border-b border-slate-800 bg-slate-900/50">
-                  <th className="py-3 px-3 rounded-r-xl">رقم اللوحة / الكارت</th>
-                  <th className="py-3 px-3">المركبة</th>
-                  <th className="py-3 px-3">الحالة</th>
-                  <th className="py-3 px-3">الفني</th>
-                  <th className="py-3 px-3 rounded-l-xl text-left">التكلفة التقديرية</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {workOrders.map((wo) => {
-                  const badge = statusBadges[wo.status] || statusBadges.pending;
-                  return (
-                    <tr 
-                      key={wo.id}
-                      onClick={() => {
-                        onSelectWorkOrder(wo.id);
-                        setActiveTab('workorders');
-                      }}
-                      className="hover:bg-slate-800/40 cursor-pointer transition-colors group"
-                    >
-                      <td className="py-3.5 px-3">
-                        <div className="font-bold text-slate-200 group-hover:text-orange-400 transition-colors">
-                          {wo.plateNumber}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">{wo.id}</div>
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <div className="font-medium text-slate-300">{wo.vehicleName}</div>
-                        <div className="text-[10px] text-slate-500">{wo.customerName}</div>
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.bg} ${badge.text}`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3 font-medium text-slate-300">
-                        {wo.technicianName}
-                      </td>
-                      <td className="py-3.5 px-3 text-left font-bold text-emerald-400">
-                        {wo.finalCost.toLocaleString('ar-EG')} {settings.currency}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {workOrders.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500 bg-slate-900/40 rounded-2xl border border-slate-800/80">
+                لا توجد بطاقات صيانة حالياً. انقر على زر "+ بطاقة خدمة جديدة" بالأعلى لإضافة أول سيارة.
+              </div>
+            ) : (
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="text-slate-400 border-b border-slate-800 bg-slate-900/50">
+                    <th className="py-3 px-3 rounded-r-xl">رقم اللوحة / الكارت</th>
+                    <th className="py-3 px-3">المركبة</th>
+                    <th className="py-3 px-3">الحالة</th>
+                    <th className="py-3 px-3">الفني</th>
+                    <th className="py-3 px-3 rounded-l-xl text-left">التكلفة التقديرية</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {workOrders.map((wo) => {
+                    const badge = statusBadges[wo.status] || statusBadges.pending;
+                    return (
+                      <tr 
+                        key={wo.id}
+                        onClick={() => {
+                          onSelectWorkOrder(wo.id);
+                          setActiveTab('workorders');
+                        }}
+                        className="hover:bg-slate-800/40 cursor-pointer transition-colors group"
+                      >
+                        <td className="py-3.5 px-3">
+                          <div className="font-bold text-slate-200 group-hover:text-orange-400 transition-colors">
+                            {wo.plateNumber}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono">{wo.id}</div>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <div className="font-medium text-slate-300">{wo.vehicleName}</div>
+                          <div className="text-[10px] text-slate-500">{wo.customerName}</div>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.bg} ${badge.text}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3 font-medium text-slate-300">
+                          {wo.technicianName}
+                        </td>
+                        <td className="py-3.5 px-3 text-left font-bold text-emerald-400">
+                          {wo.finalCost.toLocaleString('ar-EG')} {settings.currency}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 

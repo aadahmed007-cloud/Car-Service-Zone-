@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { 
   Settings, Save, RefreshCw, Shield, Building, DollarSign, 
   Database, Download, Upload, FileJson, CheckCircle2, 
-  Users, UserPlus, Trash2, Edit3, Wrench, Eraser 
+  Users, UserPlus, Trash2, Edit3, Wrench, Eraser, ImagePlus, X, AlertTriangle
 } from 'lucide-react';
 import { useWorkshop } from '../../context/WorkshopContext';
 
@@ -14,19 +14,106 @@ export const SettingsView: React.FC = () => {
   } = useWorkshop();
 
   const [form, setForm] = useState(settings);
+
+  // Keep form in sync if global settings change from context
+  React.useEffect(() => {
+    setForm(settings);
+  }, [settings]);
+
   const [exportSuccess, setExportSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Technicians management state
   const [techForm, setTechForm] = useState({ name: '', phone: '', username: '', role: 'owner' as any, isActive: true });
   const [editingTechId, setEditingTechId] = useState<string | null>(null);
   const [showTechForm, setShowTechForm] = useState(false);
 
+  // Custom confirmation modal & toast
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    actionType: 'clear_all' | 'restore_demo' | 'restore_backup' | 'delete_user' | null;
+    pendingData?: any;
+    targetId?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    actionType: null
+  });
+
+  const [toast, setToast] = useState<{
+    show: boolean;
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
+
+  const executeConfirmAction = () => {
+    if (confirmModal.actionType === 'clear_all') {
+      clearAllDemoData();
+      showToast('تم تصفير كافة البيانات بنجاح! التطبيق الآن نظيف وجاهز لاستقبال بيانات ورشتك الحقيقية.', 'success');
+    } else if (confirmModal.actionType === 'restore_demo') {
+      resetAllData();
+      showToast('تمت استعادة البيانات التوضيحية الافتراضية بنجاح.', 'success');
+    } else if (confirmModal.actionType === 'restore_backup' && confirmModal.pendingData) {
+      const success = importDatabase(confirmModal.pendingData);
+      if (success) {
+        showToast('تمت استعادة قاعدة البيانات بنجاح من النسخة الاحتياطية.', 'success');
+      } else {
+        showToast('تعذر استيراد ملف النسخة الاحتياطية. يرجى التأكد من صحة التنسيق.', 'error');
+      }
+    } else if (confirmModal.actionType === 'delete_user' && confirmModal.targetId) {
+      deleteUser(confirmModal.targetId);
+      showToast('تم حذف الفني بنجاح.', 'success');
+    }
+    setConfirmModal({ isOpen: false, title: '', description: '', actionType: null });
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('يرجى اختيار ملف صورة صالح (PNG, JPG, WEBP, SVG...)', 'error');
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      showToast('حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 3 ميجابايت.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setForm(prev => ({ ...prev, logoUrl: result }));
+        updateSettings({ ...form, logoUrl: result });
+        showToast('تم تحديث صورة الشعار وتطبيقها بنجاح!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input value so re-selecting same or new file triggers onChange
+    if (logoFileInputRef.current) {
+      logoFileInputRef.current.value = '';
+    }
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     updateSettings(form);
-    alert('تم حفظ إعدادات الورشة بنجاح.');
+    showToast('تم حفظ إعدادات الورشة والشعار بنجاح.', 'success');
   };
 
   const handleExport = () => {
@@ -43,17 +130,15 @@ export const SettingsView: React.FC = () => {
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        if (confirm('هل أنت تأكد من استعادة كافة بيانات الورشة من هذه النسخة الاحتياطية؟ سيتم تحديث سجلات الورشة بهذه البيانات.')) {
-          const success = importDatabase(json);
-          if (success) {
-            setImportStatus('تمت استعادة قاعدة البيانات بنجاح من النسخة الاحتياطية.');
-            setTimeout(() => setImportStatus(null), 5000);
-          } else {
-            alert('تعذر استيراد ملف النسخة الاحتياطية. يرجى التأكد من صحة التنسيق.');
-          }
-        }
+        setConfirmModal({
+          isOpen: true,
+          title: 'استعادة ملف النسخة الاحتياطية',
+          description: 'هل أنت متأكد من استعادة كافة بيانات الورشة من هذه النسخة الاحتياطية؟ سيتم تحديث وتحديث سجلات الورشة بهذه البيانات.',
+          actionType: 'restore_backup',
+          pendingData: json
+        });
       } catch (err) {
-        alert('ملف غير صالح. يرجى اختيار ملف JSON صحيح مسبق تصديره من النظام.');
+        showToast('ملف غير صالح. يرجى اختيار ملف JSON صحيح مسبق تصديره من النظام.', 'error');
       }
     };
     reader.readAsText(file);
@@ -92,29 +177,72 @@ export const SettingsView: React.FC = () => {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="sm:col-span-2 bg-slate-900/60 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-slate-950 border border-slate-700/80 overflow-hidden flex items-center justify-center shrink-0 shadow-lg">
+          <div className="sm:col-span-2 bg-slate-900/60 p-5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center gap-5">
+            <div className="relative group w-24 h-24 rounded-2xl bg-slate-950 border border-slate-700/80 overflow-hidden flex items-center justify-center shrink-0 shadow-lg">
               {form.logoUrl ? (
                 <img 
                   src={form.logoUrl} 
-                  alt="Car Service Zone Logo" 
-                  className="w-full h-full object-cover" 
+                  alt="شعار المركز" 
+                  className="w-full h-full object-contain p-1" 
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <span className="font-extrabold text-orange-400 text-sm">CSZ</span>
+                <span className="font-extrabold text-orange-400 text-base">CSZ</span>
               )}
             </div>
-            <div className="flex-1 space-y-2 w-full">
-              <label className="block text-slate-300 font-bold">شعار المركز (Logo)</label>
-              <input
-                type="text"
-                value={form.logoUrl || ''}
-                onChange={e => setForm({ ...form, logoUrl: e.target.value })}
-                placeholder="رابط صورة الشعار..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs"
+
+            <div className="flex-1 space-y-3 w-full">
+              <div className="flex items-center justify-between">
+                <label className="block text-slate-200 font-bold text-xs">شعار المركز (Logo)</label>
+                {form.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updatedForm = { ...form, logoUrl: '' };
+                      setForm(updatedForm);
+                      updateSettings(updatedForm);
+                      showToast('تم حذف الشعار بنجاح.', 'success');
+                    }}
+                    className="text-red-400 hover:text-red-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>حذف الشعار</span>
+                  </button>
+                )}
+              </div>
+
+              <input 
+                type="file" 
+                ref={logoFileInputRef} 
+                onChange={handleLogoUpload} 
+                accept="image/*" 
+                className="hidden" 
               />
-              <p className="text-[11px] text-slate-400">تم تعيين الشعار الرسمي لـ Car Service Zone بنجاح.</p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => logoFileInputRef.current?.click()}
+                  className="flex items-center gap-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/40 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer transition-all shadow-sm"
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  <span>اختيار صورة من الجهاز</span>
+                </button>
+
+                <span className="text-slate-500 text-xs font-bold">أو</span>
+
+                <input
+                  type="text"
+                  value={form.logoUrl || ''}
+                  onChange={e => setForm({ ...form, logoUrl: e.target.value })}
+                  placeholder="إدخال رابط صورة مباشرة (URL)..."
+                  className="flex-1 min-w-[200px] bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-white font-mono text-xs"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                يمكنك رفع صورة من جهازك بصيغة (PNG, JPG, WEBP) لتظهر في شريط التنقل، القوائم، والمطبوعات الرسمية.
+              </p>
             </div>
           </div>
 
@@ -242,15 +370,15 @@ export const SettingsView: React.FC = () => {
             onSubmit={(e) => {
               e.preventDefault();
               if (!techForm.name || !techForm.phone || !techForm.username) {
-                alert('يرجى تعبئة جميع الحقول المطلوبة');
+                showToast('يرجى تعبئة جميع الحقول المطلوبة', 'error');
                 return;
               }
               if (editingTechId) {
                 updateUser(editingTechId, techForm);
-                alert('تم تعديل الفني بنجاح');
+                showToast('تم تعديل بيانات الفني بنجاح');
               } else {
                 addUser(techForm);
-                alert('تم إضافة الفني الجديد بنجاح');
+                showToast('تم إضافة الفني الجديد بنجاح');
               }
               setTechForm({ name: '', phone: '', username: '', role: 'owner', isActive: true });
               setEditingTechId(null);
@@ -388,10 +516,13 @@ export const SettingsView: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`هل أنت متأكد من حذف الفني "${user.name}"؟`)) {
-                            deleteUser(user.id);
-                            alert('تم حذف الفني بنجاح');
-                          }
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'حذف الفني / الموظف',
+                            description: `هل أنت متأكد من حذف الفني "${user.name}" من نظام الورشة؟`,
+                            actionType: 'delete_user',
+                            targetId: user.id
+                          });
                         }}
                         className="p-1 bg-slate-850 hover:bg-slate-800 text-red-400 rounded-lg cursor-pointer"
                         title="حذف"
@@ -564,10 +695,12 @@ export const SettingsView: React.FC = () => {
 
           <button
             onClick={() => {
-              if (confirm('تنبيه هام جداً:\n\nهل أنت متأكد من مسح كافة البيانات التجريبية وتصفير الورشة لبدء العمل الحقيقي؟\nلا يمكن التراجع عن هذه الخطوة.')) {
-                clearAllDemoData();
-                alert('تم تصفير كافة البيانات بنجاح! التطبيق الآن نظيف وجاهز لاستقبال بيانات ورشتك الحقيقية.');
-              }
+              setConfirmModal({
+                isOpen: true,
+                title: 'تصفير النظام ومسح جميع البيانات التجريبية',
+                description: 'تنبيه هام جداً:\n\nهل أنت متأكد من مسح كافة العملاء، السيارات، كروت الصيانة، المخزون، الفواتير، والمصروفات لبدء التشغيل الحقيقي للورشة؟\nلا يمكن التراجع عن هذه الخطوة.',
+                actionType: 'clear_all'
+              });
             }}
             className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl cursor-pointer shadow-lg shadow-orange-500/10 transition-all"
           >
@@ -590,10 +723,12 @@ export const SettingsView: React.FC = () => {
 
           <button
             onClick={() => {
-              if (confirm('هل أنت تأكد من إعادة استعادة البيانات النموذجية الافتراضية للورشة؟')) {
-                resetAllData();
-                alert('تمت استعادة البيانات التوضيحية الافتراضية بنجاح.');
-              }
+              setConfirmModal({
+                isOpen: true,
+                title: 'استعادة البيانات التجريبية الافتراضية',
+                description: 'هل أنت متأكد من إعادة استعادة البيانات النموذجية الافتراضية للورشة؟',
+                actionType: 'restore_demo'
+              });
             }}
             className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs px-4 py-2.5 rounded-2xl cursor-pointer transition-all"
           >
@@ -602,6 +737,60 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal Component */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-[#0F172A] border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-orange-400" />
+                {confirmModal.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ isOpen: false, title: '', description: '', actionType: null })}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-300 leading-relaxed space-y-2 whitespace-pre-line bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+              {confirmModal.description}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ isOpen: false, title: '', description: '', actionType: null })}
+                className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 font-bold text-xs transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeConfirmAction}
+                className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-lg shadow-orange-500/20 cursor-pointer transition-all"
+              >
+                تأكيد وبدء التنفيذ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Popup */}
+      {toast?.show && (
+        <div className={`fixed bottom-6 left-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border text-xs font-bold animate-fade-in ${
+          toast.type === 'success' 
+            ? 'bg-slate-900 text-emerald-400 border-emerald-500/40 shadow-emerald-500/10' 
+            : 'bg-slate-900 text-red-400 border-red-500/40 shadow-red-500/10'
+        }`}>
+          <CheckCircle2 className={`w-5 h-5 ${toast.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`} />
+          <span>{toast.message}</span>
+        </div>
+      )}
 
     </div>
   );

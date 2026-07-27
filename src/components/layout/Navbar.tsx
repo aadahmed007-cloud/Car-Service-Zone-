@@ -60,8 +60,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         
         {/* Right Section: Workshop Brand Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700/80 overflow-hidden flex items-center justify-center text-white shadow-lg shadow-black/40 shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveTab?.('dashboard')}
+          className="flex items-center gap-3 cursor-pointer group text-right hover:opacity-95 transition-all"
+          title="الرئيسية - العودة للوحة التحكم"
+        >
+          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700/80 overflow-hidden flex items-center justify-center text-white shadow-lg shadow-black/40 shrink-0 group-hover:border-orange-500/50 transition-colors">
             {settings.logoUrl ? (
               <img 
                 src={settings.logoUrl} 
@@ -70,11 +75,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <Wrench className="w-5 h-5 text-orange-400" />
+              <Wrench className="w-5 h-5 text-orange-400 group-hover:scale-110 transition-transform" />
             )}
           </div>
           <div className="hidden sm:block">
-            <h1 className="font-extrabold text-base leading-tight text-white flex items-center gap-2">
+            <h1 className="font-extrabold text-base leading-tight text-white flex items-center gap-2 group-hover:text-orange-400 transition-colors">
               {settings.name || 'Car Service Zone'}
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-orange-400 border border-slate-700">
                 مركز صيانة معتمد
@@ -82,7 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </h1>
             <p className="text-xs text-slate-400 font-medium">{settings.tagline}</p>
           </div>
-        </div>
+        </button>
 
         {/* Center: Global Search Bar */}
         <div className="flex-1 max-w-md relative">

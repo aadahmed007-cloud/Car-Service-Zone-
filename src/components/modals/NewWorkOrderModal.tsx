@@ -16,7 +16,7 @@ export const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({ isOpen, on
   const [reportedIssues, setReportedIssues] = useState('');
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [technicianName, setTechnicianName] = useState(() => {
-    return users && users.length > 0 ? users[0].name : 'أحمد علي';
+    return users && users.length > 0 ? users[0].name : 'مهندس الورشة (المالك)';
   });
   const [currentMileage, setCurrentMileage] = useState(85000);
 
@@ -126,12 +126,7 @@ export const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({ isOpen, on
                     </option>
                   ))
                 ) : (
-                  <>
-                    <option value="أحمد علي">أحمد علي (ميكانيكا وعفشة)</option>
-                    <option value="خالد حسن">خالد حسن (فرامل ومحركات)</option>
-                    <option value="محمد إبراهيم">محمد إبراهيم (كهرباء وفحص)</option>
-                    <option value="سعيد محمد">سعيد محمد (صيانة دورية)</option>
-                  </>
+                  <option value="مهندس الورشة (المالك)">مهندس الورشة (المالك)</option>
                 )}
               </select>
             </div>

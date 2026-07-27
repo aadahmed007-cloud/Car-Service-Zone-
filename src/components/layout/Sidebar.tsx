@@ -80,8 +80,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       
       {/* Top Sidebar Header */}
       <div className="p-4 border-b border-slate-800">
-        <div className="bg-slate-900/90 rounded-2xl p-3 border border-slate-800/80 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-700/80 overflow-hidden flex items-center justify-center shrink-0 shadow-md">
+        <button
+          type="button"
+          onClick={() => setActiveTab('dashboard')}
+          className="w-full text-right bg-slate-900/90 hover:bg-slate-900 rounded-2xl p-3 border border-slate-800/80 hover:border-orange-500/40 flex items-center gap-3 transition-all cursor-pointer group"
+          title="العودة للوحة التحكم الرئيسية"
+        >
+          <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-700/80 overflow-hidden flex items-center justify-center shrink-0 shadow-md group-hover:border-orange-500/50 transition-colors">
             {settings.logoUrl ? (
               <img 
                 src={settings.logoUrl} 
@@ -94,13 +99,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             )}
           </div>
           <div className="overflow-hidden">
-            <span className="block text-xs font-extrabold text-white truncate">{settings.name || 'Car Service Zone'}</span>
+            <span className="block text-xs font-extrabold text-white truncate group-hover:text-orange-400 transition-colors">{settings.name || 'Car Service Zone'}</span>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[10px] text-emerald-400 font-bold">النظام نشط</span>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Navigation List */}

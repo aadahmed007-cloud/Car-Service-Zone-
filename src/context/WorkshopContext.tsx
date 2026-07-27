@@ -102,8 +102,8 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (saved) {
       const parsed = JSON.parse(saved);
       parsed.currency = 'ج.م';
-      parsed.name = 'Car Service Zone';
-      parsed.logoUrl = '/src/assets/images/car_service_zone_logo_1784844176778.jpg';
+      parsed.name = parsed.name || 'Car Service Zone';
+      parsed.logoUrl = parsed.logoUrl !== undefined ? parsed.logoUrl : '/src/assets/images/car_service_zone_logo_1784844176778.jpg';
       return parsed;
     }
     return initialSettings;
@@ -724,6 +724,10 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setPurchaseOrders([]);
     setInvoices([]);
     setExpenses([]);
+    const defaultOwner: User[] = [
+      { id: 'usr-1', name: 'المهندس (مالك الورشة)', username: 'admin', role: 'owner', phone: settings.phone || '01000000000', isActive: true }
+    ];
+    setUsers(defaultOwner);
     const freshBoxes: CashBox[] = [
       { id: 'cb-1', name: 'الخزينة الرئيسية', balance: 0 },
       { id: 'cb-2', name: 'الحساب البنكي / شبكة', balance: 0 }
@@ -731,7 +735,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setCashBoxes(freshBoxes);
     setNotifications([]);
     setActivityLogs([
-      { id: `log-${Date.now()}`, userName: activeUserName, action: 'تصفير البيانات', details: 'تم مسح كافة البيانات التجريبية وتفريغ النظام لبدء التشغيل الحقيقي', timestamp: new Date().toLocaleString('ar-EG') }
+      { id: `log-${Date.now()}`, userName: 'مالك الورشة', action: 'تصفير النظام بالكامل', details: 'تم مسح كافة البيانات التجريبية، الفنيين، العملاء، الفواتير، والعمليات لبدء التشغيل الحقيقي', timestamp: new Date().toLocaleString('ar-EG') }
     ]);
     localStorage.setItem('csz_customers', JSON.stringify([]));
     localStorage.setItem('csz_vehicles', JSON.stringify([]));
@@ -741,6 +745,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('csz_purchase_orders', JSON.stringify([]));
     localStorage.setItem('csz_invoices', JSON.stringify([]));
     localStorage.setItem('csz_expenses', JSON.stringify([]));
+    localStorage.setItem('csz_users', JSON.stringify(defaultOwner));
     localStorage.setItem('csz_cash_boxes', JSON.stringify(freshBoxes));
   };
 

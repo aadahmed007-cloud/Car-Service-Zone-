@@ -11,27 +11,101 @@ import * as XLSX from 'xlsx';
 import { useWorkshop } from '../../context/WorkshopContext';
 
 export const ReportsView: React.FC = () => {
-  const { workOrders, parts, invoices, expenses, settings } = useWorkshop();
+  const { workOrders, parts, invoices, expenses, customers, vehicles, users, settings } = useWorkshop();
 
   const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'custom'>('month');
 
-  // Revenue vs Expenses chart data matching Image #8
-  const chartData = [
-    { day: '01', revenue: 45000, expenses: 32000 },
-    { day: '06', revenue: 58000, expenses: 41000 },
-    { day: '11', revenue: 52000, expenses: 38000 },
-    { day: '16', revenue: 64000, expenses: 48000 },
-    { day: '21', revenue: 80000, expenses: 65000 },
-    { day: '26', revenue: 75000, expenses: 58000 },
-    { day: '31', revenue: 92000, expenses: 70000 },
-  ];
+  // Dynamic calculations
+  const totalRevenue = invoices.reduce((sum, i) => sum + (i.paidAmount || 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const netProfit = totalRevenue - totalExpenses;
+  const avgInvoiceValue = invoices.length > 0 ? Math.round(totalRevenue / invoices.length) : 0;
+  const customerRetentionRate = customers.length > 0 ? Math.min(100, Math.round((workOrders.length / customers.length) * 100)) : 0;
 
-  // Donut Chart Data
-  const serviceDistribution = [
-    { name: 'ميكانيكا وعفشة', value: 45, color: '#3B82F6' },
-    { name: 'كهرباء وكومبيوتر', value: 30, color: '#F97316' },
-    { name: 'تغيير زيت وصيانة', value: 25, color: '#22C55E' },
-  ];
+  // Find top technician
+  const techMap: Record<string, number> = {};
+  workOrders.forEach(w => {
+    if (w.technicianName) {
+      techMap[w.technicianName] = (techMap[w.technicianName] || 0) + 1;
+    }
+  });
+  let topTechName = 'لا يوجد';
+  let maxTechOrders = 0;
+  Object.entries(techMap).forEach(([name, count]) => {
+    if (count > maxTechOrders) {
+      maxTechOrders = count;
+      topTechName = name;
+    }
+  });
+
+  // Revenue vs Expenses chart data generated from real invoices & expenses
+  const chartData = React.useMemo(() => {
+    if (invoices.length === 0 && expenses.length === 0) {
+      return [
+        { day: '01', revenue: 0, expenses: 0 },
+        { day: '10', revenue: 0, expenses: 0 },
+        { day: '20', revenue: 0, expenses: 0 },
+        { day: '30', revenue: 0, expenses: 0 },
+      ];
+    }
+
+    const daysMap: Record<string, { revenue: number; expenses: number }> = {};
+    invoices.forEach(inv => {
+      const day = inv.issueDate ? inv.issueDate.substring(8, 10) : '01';
+      if (!daysMap[day]) daysMap[day] = { revenue: 0, expenses: 0 };
+      daysMap[day].revenue += inv.paidAmount || 0;
+    });
+    expenses.forEach(exp => {
+      const day = exp.date ? exp.date.substring(8, 10) : '01';
+      if (!daysMap[day]) daysMap[day] = { revenue: 0, expenses: 0 };
+      daysMap[day].expenses += exp.amount || 0;
+    });
+
+    const sortedDays = Object.keys(daysMap).sort();
+    return sortedDays.map(day => ({
+      day,
+      revenue: daysMap[day].revenue,
+      expenses: daysMap[day].expenses,
+    }));
+  }, [invoices, expenses]);
+
+  // Donut Chart Data generated dynamically
+  const serviceDistribution = React.useMemo(() => {
+    if (workOrders.length === 0) {
+      return [{ name: 'لا توجد خدمات منفذة', value: 100, color: '#475569' }];
+    }
+    const categories: Record<string, number> = {
+      'ميكانيكا وعفشة': 0,
+      'كهرباء وكومبيوتر': 0,
+      'تغيير زيت وصيانة': 0,
+    };
+    let totalServices = 0;
+    workOrders.forEach(w => {
+      w.services?.forEach(s => {
+        totalServices++;
+        if (s.serviceName.includes('زيت') || s.serviceName.includes('صيانة') || s.serviceName.includes('فلتر')) {
+          categories['تغيير زيت وصيانة']++;
+        } else if (s.serviceName.includes('كهرباء') || s.serviceName.includes('فحص') || s.serviceName.includes('كمبيوتر')) {
+          categories['كهرباء وكومبيوتر']++;
+        } else {
+          categories['ميكانيكا وعفشة']++;
+        }
+      });
+    });
+
+    if (totalServices === 0) {
+      return [{ name: 'لا توجد خدمات منفذة', value: 100, color: '#475569' }];
+    }
+
+    const colors = ['#3B82F6', '#F97316', '#22C55E'];
+    return Object.entries(categories)
+      .filter(([_, val]) => val > 0)
+      .map(([name, val], idx) => ({
+        name,
+        value: Math.round((val / totalServices) * 100),
+        color: colors[idx % colors.length]
+      }));
+  }, [workOrders]);
 
   // Excel Export Handler using `xlsx`
   const exportToExcel = () => {
@@ -51,7 +125,7 @@ export const ReportsView: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'تقرير_الفواتير_والإيرادات');
 
-    XLSX.writeFile(workbook, `تقرير_ورشة_الذكاء_${new Date().toISOString().substring(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `تقرير_ورشة_${new Date().toISOString().substring(0, 10)}.xlsx`);
   };
 
   return (
@@ -182,32 +256,34 @@ export const ReportsView: React.FC = () => {
 
       </div>
 
-      {/* KPI Cards (Matching Image #8 Bottom Grid) */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         
         <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-4">
           <span className="text-xs text-slate-400 font-bold block mb-1">صافي الربح التقديري</span>
-          <div className="text-2xl font-extrabold text-emerald-400">+ 45,000 {settings.currency}</div>
+          <div className={`text-2xl font-extrabold ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {netProfit >= 0 ? `+ ${netProfit.toLocaleString('ar-EG')}` : netProfit.toLocaleString('ar-EG')} {settings.currency}
+          </div>
         </div>
 
         <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-4">
           <span className="text-xs text-slate-400 font-bold block mb-1">متوسط قيمة الفاتورة</span>
-          <div className="text-2xl font-extrabold text-white">550 {settings.currency}</div>
+          <div className="text-2xl font-extrabold text-white">{avgInvoiceValue.toLocaleString('ar-EG')} {settings.currency}</div>
         </div>
 
         <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-4">
           <span className="text-xs text-slate-400 font-bold block mb-1">معدل الاحتفاظ بالعملاء</span>
-          <div className="text-2xl font-extrabold text-blue-400">85%</div>
+          <div className="text-2xl font-extrabold text-blue-400">{customerRetentionRate}%</div>
         </div>
 
         <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-4">
-          <span className="text-xs text-slate-400 font-bold block mb-1">الفني الأكثر ربحية</span>
-          <div className="text-xl font-extrabold text-orange-400">أحمد علي</div>
+          <span className="text-xs text-slate-400 font-bold block mb-1">الفني الأكثر عمليات</span>
+          <div className="text-xl font-extrabold text-orange-400 truncate">{topTechName}</div>
         </div>
 
       </div>
 
-      {/* Tech Productivity & Top Selling Parts (Matching Image #8) */}
+      {/* Tech Productivity & Top Selling Parts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Tech Productivity */}
@@ -216,39 +292,49 @@ export const ReportsView: React.FC = () => {
             <Users className="w-4 h-4 text-orange-400" /> إنتاجية الفنيين
           </h3>
           <div className="space-y-3 text-xs">
-            {[
-              { name: 'أحمد علي', score: '92% - 120 مهمة', color: 'bg-emerald-500', width: 'w-[92%]' },
-              { name: 'محمد إبراهيم', score: '88% - 105 مهمة', color: 'bg-blue-500', width: 'w-[88%]' },
-              { name: 'خالد حسن', score: '85% - 90 مهمة', color: 'bg-amber-500', width: 'w-[85%]' },
-            ].map((tech, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex items-center justify-between font-bold text-slate-200">
-                  <span>{tech.name}</span>
-                  <span className="text-slate-400">{tech.score}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
-                  <div className={`h-full ${tech.color} ${tech.width}`} />
-                </div>
-              </div>
-            ))}
+            {users.length === 0 ? (
+              <p className="text-slate-500 py-4 text-center">لا يوجد فنيين أو موظفين مسجلين حالياً.</p>
+            ) : (
+              users.map((u, idx) => {
+                const assignedCount = workOrders.filter(w => w.technicianName === u.name || w.technicianId === u.id).length;
+                const totalWO = workOrders.length || 1;
+                const pct = Math.round((assignedCount / totalWO) * 100);
+                const colors = ['bg-emerald-500', 'bg-blue-500', 'bg-amber-500', 'bg-purple-500'];
+                return (
+                  <div key={u.id} className="space-y-1">
+                    <div className="flex items-center justify-between font-bold text-slate-200">
+                      <span>{u.name}</span>
+                      <span className="text-slate-400">{pct}% - {assignedCount} مهمة</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                      <div className={`h-full ${colors[idx % colors.length]}`} style={{ width: `${Math.max(pct, workOrders.length > 0 ? 5 : 0)}%` }} />
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
         {/* Top Selling Parts */}
         <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-5 space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-            <Wrench className="w-4 h-4 text-emerald-400" /> قطع الغيار الأكثر مبيعاً
+            <Wrench className="w-4 h-4 text-emerald-400" /> قائمة قطع الغيار بأسعارها
           </h3>
           <div className="space-y-3 text-xs">
-            {parts.slice(0, 3).map((p, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 bg-slate-900 rounded-2xl border border-slate-800">
-                <div>
-                  <span className="font-bold text-white block">{p.name}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{p.sku}</span>
+            {parts.length === 0 ? (
+              <p className="text-slate-500 py-4 text-center">لا توجد قطع غيار مسجلة بالمخزون حالياً.</p>
+            ) : (
+              parts.slice(0, 4).map((p) => (
+                <div key={p.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-2xl border border-slate-800">
+                  <div>
+                    <span className="font-bold text-white block">{p.name}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{p.sku} • المتبقي: {p.quantityInStock}</span>
+                  </div>
+                  <span className="font-extrabold text-orange-400">{p.unitPrice.toLocaleString('ar-EG')} {settings.currency}</span>
                 </div>
-                <span className="font-extrabold text-orange-400">250 قطعة مباعة</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

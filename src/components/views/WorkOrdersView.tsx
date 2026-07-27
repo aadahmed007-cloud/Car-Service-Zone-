@@ -254,12 +254,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                         </option>
                       ))
                     ) : (
-                      <>
-                        <option value="أحمد علي">أحمد علي (ميكانيكا)</option>
-                        <option value="خالد حسن">خالد حسن (عفشة وفرامل)</option>
-                        <option value="محمد إبراهيم">محمد إبراهيم (كهرباء وكومبيوتر)</option>
-                        <option value="سعيد محمد">سعيد محمد (صيانة دورية)</option>
-                      </>
+                      <option value="مهندس الورشة (المالك)">مهندس الورشة (المالك)</option>
                     )}
                   </select>
                 </div>
