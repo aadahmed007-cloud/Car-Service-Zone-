@@ -24,7 +24,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
   const { 
     workOrders, deleteWorkOrder, updateWorkOrderStatus, addServiceToWorkOrder, 
     removeServiceFromWorkOrder, addPartToWorkOrder, removePartFromWorkOrder,
-    convertWorkOrderToInvoice, parts, settings, currentRole 
+    convertWorkOrderToInvoice, parts, settings, currentRole, users 
   } = useWorkshop();
 
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -247,10 +247,20 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({
                     onChange={e => setNewServiceTech(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                   >
-                    <option value="أحمد علي">أحمد علي (ميكانيكا)</option>
-                    <option value="خالد حسن">خالد حسن (عفشة وفرامل)</option>
-                    <option value="محمد إبراهيم">محمد إبراهيم (كهرباء وكومبيوتر)</option>
-                    <option value="سعيد محمد">سعيد محمد (صيانة دورية)</option>
+                    {users && users.length > 0 ? (
+                      users.map(u => (
+                        <option key={u.id} value={u.name}>
+                          {u.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="أحمد علي">أحمد علي (ميكانيكا)</option>
+                        <option value="خالد حسن">خالد حسن (عفشة وفرامل)</option>
+                        <option value="محمد إبراهيم">محمد إبراهيم (كهرباء وكومبيوتر)</option>
+                        <option value="سعيد محمد">سعيد محمد (صيانة دورية)</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
-  UserRole, WorkOrder, WorkOrderStatus, Customer, Vehicle, 
+  UserRole, User, WorkOrder, WorkOrderStatus, Customer, Vehicle, 
   Part, Supplier, PurchaseOrder, Invoice, Expense, CashBox, 
   WorkshopSettings, NotificationItem, ActivityLog, WorkOrderService, 
   WorkOrderPart, PaymentMethod
@@ -78,9 +78,16 @@ interface WorkshopContextType {
   addExpense: (expense: Omit<Expense, 'id' | 'paidBy'>) => void;
   deleteExpense: (id: string) => void;
   
+  // Users / Technicians
+  users: User[];
+  addUser: (user: Omit<User, 'id'>) => void;
+  updateUser: (id: string, updates: Partial<User>) => void;
+  deleteUser: (id: string) => void;
+  
   // Notifications & Log
   markAllNotificationsRead: () => void;
   resetAllData: () => void;
+  clearAllDemoData: () => void;
   exportDatabase: () => void;
   importDatabase: (jsonData: any) => boolean;
 }
@@ -150,6 +157,11 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(initialActivityLogs);
 
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('csz_users');
+    return saved ? JSON.parse(saved) : initialUsers;
+  });
+
   // Persistence
   useEffect(() => { localStorage.setItem('csz_settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('csz_customers', JSON.stringify(customers)); }, [customers]);
@@ -160,6 +172,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => { localStorage.setItem('csz_purchase_orders', JSON.stringify(purchaseOrders)); }, [purchaseOrders]);
   useEffect(() => { localStorage.setItem('csz_invoices', JSON.stringify(invoices)); }, [invoices]);
   useEffect(() => { localStorage.setItem('csz_expenses', JSON.stringify(expenses)); }, [expenses]);
+  useEffect(() => { localStorage.setItem('csz_users', JSON.stringify(users)); }, [users]);
 
   const activeUserName = 'المهندس طارق العلي (المالك)';
 
@@ -195,13 +208,41 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const nextIdNumber = workOrders.length + 90;
     const newId = `${settings.workOrderPrefix}${String(nextIdNumber).padStart(3, '0')}`;
     
-    const laborTotal = orderData.services?.reduce((sum, s) => sum + (s.cost || 0), 0) || 0;
-    const partsTotal = orderData.parts?.reduce((sum, p) => sum + (p.totalPrice || 0), 0) || 0;
+    // Auto-resolve vehicle & customer info to avoid undefined fields
+    const customer = customers.find(c => c.id === orderData.customerId);
+    const vehicle = vehicles.find(v => v.id === orderData.vehicleId);
+    
+    const customerName = customer ? customer.name : '';
+    const vehicleName = vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.year})` : '';
+    const plateNumber = vehicle ? vehicle.plateNumber : '';
+    const chassisNumber = vehicle ? vehicle.chassisNumber : '';
+    
+    const services = orderData.services || [];
+    const parts = orderData.parts || [];
+    const status = orderData.status || 'in_progress';
+    const checkInDate = orderData.checkInDate || new Date().toISOString().substring(0, 10);
+    const estimatedCost = orderData.estimatedCost || 0;
+    
+    const techUser = users.find(u => u.name === orderData.technicianName);
+    const technicianId = techUser ? techUser.id : (orderData.technicianId || 'usr-4');
+
+    const laborTotal = services.reduce((sum, s) => sum + (s.cost || 0), 0);
+    const partsTotal = parts.reduce((sum, p) => sum + (p.totalPrice || 0), 0);
     const finalCost = laborTotal + partsTotal;
 
     const newOrder: WorkOrder = {
       ...orderData,
       id: newId,
+      customerName,
+      vehicleName,
+      plateNumber,
+      chassisNumber,
+      services,
+      parts,
+      status,
+      checkInDate,
+      estimatedCost,
+      technicianId,
       laborTotal,
       partsTotal,
       finalCost,
@@ -209,9 +250,29 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setWorkOrders(prev => [newOrder, ...prev]);
-    addLog('إنشاء كارت صيانة', `تم إنشاء كارت الصيانة ${newId} للسيارة ${newOrder.vehicleName}`);
+    addLog('إنشاء كارت صيانة', `تم إنشاء كارت الصيانة ${newId} للسيارة ${vehicleName}`);
     
     return newOrder;
+  };
+
+  // Users & Technicians actions
+  const addUser = (userData: Omit<User, 'id'>) => {
+    const newUser: User = {
+      ...userData,
+      id: `usr-${Date.now()}`
+    };
+    setUsers(prev => [...prev, newUser]);
+    addLog('إضافة موظف/فني', `تم إضافة الفني/الموظف الجديد ${newUser.name}`);
+  };
+
+  const updateUser = (id: string, updates: Partial<User>) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+    addLog('تعديل موظف/فني', `تم تحديث بيانات الفني/الموظف`);
+  };
+
+  const deleteUser = (id: string) => {
+    setUsers(prev => prev.filter(u => u.id !== id));
+    addLog('حذف موظف/فني', `تم حذف الفني/الموظف من النظام`);
   };
 
   const updateWorkOrder = (id: string, updates: Partial<WorkOrder>) => {
@@ -654,6 +715,35 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     addLog('إعادة ضبط البيانات', 'تمت استعادة كافة البيانات الافتراضية للورشة');
   };
 
+  const clearAllDemoData = () => {
+    setCustomers([]);
+    setVehicles([]);
+    setWorkOrders([]);
+    setParts([]);
+    setSuppliers([]);
+    setPurchaseOrders([]);
+    setInvoices([]);
+    setExpenses([]);
+    const freshBoxes: CashBox[] = [
+      { id: 'cb-1', name: 'الخزينة الرئيسية', balance: 0 },
+      { id: 'cb-2', name: 'الحساب البنكي / شبكة', balance: 0 }
+    ];
+    setCashBoxes(freshBoxes);
+    setNotifications([]);
+    setActivityLogs([
+      { id: `log-${Date.now()}`, userName: activeUserName, action: 'تصفير البيانات', details: 'تم مسح كافة البيانات التجريبية وتفريغ النظام لبدء التشغيل الحقيقي', timestamp: new Date().toLocaleString('ar-EG') }
+    ]);
+    localStorage.setItem('csz_customers', JSON.stringify([]));
+    localStorage.setItem('csz_vehicles', JSON.stringify([]));
+    localStorage.setItem('csz_work_orders', JSON.stringify([]));
+    localStorage.setItem('csz_parts', JSON.stringify([]));
+    localStorage.setItem('csz_suppliers', JSON.stringify([]));
+    localStorage.setItem('csz_purchase_orders', JSON.stringify([]));
+    localStorage.setItem('csz_invoices', JSON.stringify([]));
+    localStorage.setItem('csz_expenses', JSON.stringify([]));
+    localStorage.setItem('csz_cash_boxes', JSON.stringify(freshBoxes));
+  };
+
   const exportDatabase = () => {
     const backupData = {
       appName: 'CSZ Auto Workshop System',
@@ -714,6 +804,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       currentRole, setCurrentRole, activeUserName, themeMode, toggleTheme,
       settings, updateSettings,
       customers, vehicles, workOrders, parts, suppliers, purchaseOrders, invoices, expenses, cashBoxes, notifications, activityLogs,
+      users, addUser, updateUser, deleteUser,
       addWorkOrder, updateWorkOrder, updateWorkOrderStatus, addServiceToWorkOrder, removeServiceFromWorkOrder, addPartToWorkOrder, removePartFromWorkOrder, convertWorkOrderToInvoice,
       addCustomer, updateCustomer, deleteCustomer, addVehicle, updateVehicle, deleteVehicle,
       deleteWorkOrder,
@@ -721,7 +812,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       addSupplier, deleteSupplier, addPurchaseOrder, receivePurchaseOrder,
       recordPayment, deleteInvoice,
       addExpense, deleteExpense,
-      markAllNotificationsRead, resetAllData, exportDatabase, importDatabase
+      markAllNotificationsRead, resetAllData, clearAllDemoData, exportDatabase, importDatabase
     }}>
       {children}
     </WorkshopContext.Provider>

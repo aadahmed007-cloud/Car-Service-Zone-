@@ -9,13 +9,15 @@ interface NewWorkOrderModalProps {
 }
 
 export const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { customers, vehicles, addWorkOrder, settings } = useWorkshop();
+  const { customers, vehicles, addWorkOrder, settings, users } = useWorkshop();
 
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [reportedIssues, setReportedIssues] = useState('');
   const [inspectionNotes, setInspectionNotes] = useState('');
-  const [technicianName, setTechnicianName] = useState('أحمد علي');
+  const [technicianName, setTechnicianName] = useState(() => {
+    return users && users.length > 0 ? users[0].name : 'أحمد علي';
+  });
   const [currentMileage, setCurrentMileage] = useState(85000);
 
   if (!isOpen) return null;
@@ -117,10 +119,20 @@ export const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({ isOpen, on
                 onChange={e => setTechnicianName(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
               >
-                <option value="أحمد علي">أحمد علي (ميكانيكا وعفشة)</option>
-                <option value="خالد حسن">خالد حسن (فرامل ومحركات)</option>
-                <option value="محمد إبراهيم">محمد إبراهيم (كهرباء وفحص)</option>
-                <option value="سعيد محمد">سعيد محمد (صيانة دورية)</option>
+                {users && users.length > 0 ? (
+                  users.map(u => (
+                    <option key={u.id} value={u.name}>
+                      {u.name} ({u.role === 'owner' ? 'إدارة/فني' : 'فني'})
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="أحمد علي">أحمد علي (ميكانيكا وعفشة)</option>
+                    <option value="خالد حسن">خالد حسن (فرامل ومحركات)</option>
+                    <option value="محمد إبراهيم">محمد إبراهيم (كهرباء وفحص)</option>
+                    <option value="سعيد محمد">سعيد محمد (صيانة دورية)</option>
+                  </>
+                )}
               </select>
             </div>
           </div>

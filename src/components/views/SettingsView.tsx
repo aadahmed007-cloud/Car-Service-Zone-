@@ -1,17 +1,27 @@
 import React, { useState, useRef } from 'react';
-import { Settings, Save, RefreshCw, Shield, Building, DollarSign, Database, Download, Upload, FileJson, CheckCircle2 } from 'lucide-react';
+import { 
+  Settings, Save, RefreshCw, Shield, Building, DollarSign, 
+  Database, Download, Upload, FileJson, CheckCircle2, 
+  Users, UserPlus, Trash2, Edit3, Wrench, Eraser 
+} from 'lucide-react';
 import { useWorkshop } from '../../context/WorkshopContext';
 
 export const SettingsView: React.FC = () => {
   const { 
-    settings, updateSettings, resetAllData, exportDatabase, importDatabase,
-    customers, vehicles, workOrders, parts, suppliers, purchaseOrders, invoices, expenses
+    settings, updateSettings, resetAllData, clearAllDemoData, exportDatabase, importDatabase,
+    customers, vehicles, workOrders, parts, suppliers, purchaseOrders, invoices, expenses,
+    users, addUser, updateUser, deleteUser
   } = useWorkshop();
 
   const [form, setForm] = useState(settings);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Technicians management state
+  const [techForm, setTechForm] = useState({ name: '', phone: '', username: '', role: 'owner' as any, isActive: true });
+  const [editingTechId, setEditingTechId] = useState<string | null>(null);
+  const [showTechForm, setShowTechForm] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +213,200 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Technicians & Staff Management */}
+      <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Users className="w-4 h-4 text-orange-400" /> إدارة الفنيين وموظفي الورشة
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">تعديل وإضافة الطاقم الفني والمهندسين الذين يعملون بالمركز والتحكم بصلاحياتهم</p>
+          </div>
+
+          <button
+            onClick={() => {
+              setEditingTechId(null);
+              setTechForm({ name: '', phone: '', username: '', role: 'owner', isActive: true });
+              setShowTechForm(!showTechForm);
+            }}
+            className="flex items-center justify-center gap-1.5 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold text-xs px-4 py-2 rounded-2xl cursor-pointer transition-all"
+          >
+            <UserPlus className="w-4 h-4 text-orange-400" />
+            <span>{showTechForm ? 'إغلاق النموذج' : 'إضافة فني جديد'}</span>
+          </button>
+        </div>
+
+        {/* Technician Form */}
+        {showTechForm && (
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!techForm.name || !techForm.phone || !techForm.username) {
+                alert('يرجى تعبئة جميع الحقول المطلوبة');
+                return;
+              }
+              if (editingTechId) {
+                updateUser(editingTechId, techForm);
+                alert('تم تعديل الفني بنجاح');
+              } else {
+                addUser(techForm);
+                alert('تم إضافة الفني الجديد بنجاح');
+              }
+              setTechForm({ name: '', phone: '', username: '', role: 'owner', isActive: true });
+              setEditingTechId(null);
+              setShowTechForm(false);
+            }}
+            className="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl space-y-4 text-xs animate-fade-in"
+          >
+            <h4 className="font-bold text-white flex items-center gap-1.5">
+              <Wrench className="w-3.5 h-3.5 text-orange-400" />
+              {editingTechId ? 'تعديل بيانات الفني' : 'إدخال فني جديد للورشة'}
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">الاسم الكامل للفني *</label>
+                <input
+                  type="text"
+                  required
+                  value={techForm.name}
+                  onChange={e => setTechForm({ ...techForm, name: e.target.value })}
+                  placeholder="مثال: م. أحمد منصور"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">رقم الهاتف/الجوال *</label>
+                <input
+                  type="text"
+                  required
+                  value={techForm.phone}
+                  onChange={e => setTechForm({ ...techForm, phone: e.target.value })}
+                  placeholder="050XXXXXXXX"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">اسم المستخدم (Username) *</label>
+                <input
+                  type="text"
+                  required
+                  value={techForm.username}
+                  onChange={e => setTechForm({ ...techForm, username: e.target.value })}
+                  placeholder="ahmed_tech"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">الحالة التشغيلية</label>
+                <select
+                  value={techForm.isActive ? 'true' : 'false'}
+                  onChange={e => setTechForm({ ...techForm, isActive: e.target.value === 'true' })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold"
+                >
+                  <option value="true">نشط / على رأس العمل</option>
+                  <option value="false">غير نشط / إجازة</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingTechId(null);
+                  setTechForm({ name: '', phone: '', username: '', role: 'owner', isActive: true });
+                  setShowTechForm(false);
+                }}
+                className="px-4 py-2 rounded-xl text-slate-400 hover:text-white"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 rounded-xl cursor-pointer"
+              >
+                {editingTechId ? 'حفظ التعديلات' : 'إضافة الفني الجديد'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Technicians List Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead>
+              <tr className="text-slate-400 border-b border-slate-800 bg-slate-900/60">
+                <th className="py-2.5 px-3">اسم الفني / الموظف</th>
+                <th className="py-2.5 px-3">رقم الهاتف</th>
+                <th className="py-2.5 px-3">اسم المستخدم</th>
+                <th className="py-2.5 px-3 text-center">الحالة</th>
+                <th className="py-2.5 px-3 text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 text-slate-300">
+              {users && users.map(user => (
+                <tr key={user.id} className="hover:bg-slate-900/30 transition-colors">
+                  <td className="py-3 px-3 font-bold text-white flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold text-[10px]">
+                      {user.name.charAt(0)}
+                    </div>
+                    {user.name}
+                  </td>
+                  <td className="py-3 px-3 font-mono text-slate-400">{user.phone}</td>
+                  <td className="py-3 px-3 font-mono text-slate-400">@{user.username}</td>
+                  <td className="py-3 px-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      user.isActive 
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {user.isActive ? 'نشط' : 'غير نشط'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingTechId(user.id);
+                          setTechForm({
+                            name: user.name,
+                            phone: user.phone,
+                            username: user.username,
+                            role: user.role,
+                            isActive: user.isActive
+                          });
+                          setShowTechForm(true);
+                        }}
+                        className="p-1 bg-slate-850 hover:bg-slate-800 text-blue-400 rounded-lg cursor-pointer"
+                        title="تعديل"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`هل أنت متأكد من حذف الفني "${user.name}"؟`)) {
+                            deleteUser(user.id);
+                            alert('تم حذف الفني بنجاح');
+                          }
+                        }}
+                        className="p-1 bg-slate-850 hover:bg-slate-800 text-red-400 rounded-lg cursor-pointer"
+                        title="حذف"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Permissions Matrix Info Card */}
       <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6 space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
@@ -344,24 +548,59 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* System Reset Button */}
-      <div className="bg-[#0F172A] border border-red-500/20 rounded-3xl p-6 flex items-center justify-between">
-        <div>
-          <h4 className="text-sm font-bold text-red-400">استعادة البيانات الافتراضية</h4>
-          <p className="text-xs text-slate-400 mt-0.5">إعادة ضبط كافة القوائم والتغييرات التجريبية لاستعادة البيانات النموذجية</p>
+      {/* System Clean & Reset Options */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Option 1: Clear all demo data for live start */}
+        <div className="bg-[#0F172A] border border-orange-500/30 bg-gradient-to-br from-slate-900 to-orange-950/20 rounded-3xl p-6 flex flex-col justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-orange-400 font-bold text-sm mb-1">
+              <Eraser className="w-5 h-5" />
+              <h4>تصفير النظام ومسح جميع البيانات التجريبية</h4>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              يقوم هذا الخيار بمسح كافة العملاء، السيارات، كروت الصيانة، المخزون، الفواتير، والمصروفات لتفريغ الورشة تماماً واستلام النظام جديداً ونظيفاً لبدء العمل الحقيقي.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              if (confirm('تنبيه هام جداً:\n\nهل أنت متأكد من مسح كافة البيانات التجريبية وتصفير الورشة لبدء العمل الحقيقي؟\nلا يمكن التراجع عن هذه الخطوة.')) {
+                clearAllDemoData();
+                alert('تم تصفير كافة البيانات بنجاح! التطبيق الآن نظيف وجاهز لاستقبال بيانات ورشتك الحقيقية.');
+              }
+            }}
+            className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl cursor-pointer shadow-lg shadow-orange-500/10 transition-all"
+          >
+            <Eraser className="w-4 h-4" />
+            <span>تصفير ومسح كافة البيانات الحالية (تفريغ النظام)</span>
+          </button>
         </div>
 
-        <button
-          onClick={() => {
-            if (confirm('هل أنت تأكد من استعادة كافة البيانات الافتراضية للورشة؟')) {
-              resetAllData();
-            }
-          }}
-          className="flex items-center gap-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 font-bold text-xs px-4 py-2 rounded-2xl cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>إعادة ضبط البيانات</span>
-        </button>
+        {/* Option 2: Restore mock demo data */}
+        <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6 flex flex-col justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-slate-300 font-bold text-sm mb-1">
+              <RefreshCw className="w-4 h-4 text-slate-400" />
+              <h4>استعادة البيانات التجريبية الافتراضية</h4>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              إعادة ضبط كافة القوائم والتغييرات واستعادة السجلات التجريبية النموذجية لاختبار مزايا وتنسيقات النظام.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              if (confirm('هل أنت تأكد من إعادة استعادة البيانات النموذجية الافتراضية للورشة؟')) {
+                resetAllData();
+                alert('تمت استعادة البيانات التوضيحية الافتراضية بنجاح.');
+              }
+            }}
+            className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs px-4 py-2.5 rounded-2xl cursor-pointer transition-all"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>استعادة الأمثلة الافتراضية</span>
+          </button>
+        </div>
       </div>
 
     </div>
