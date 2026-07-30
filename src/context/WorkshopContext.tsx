@@ -96,7 +96,10 @@ const WorkshopContext = createContext<WorkshopContextType | undefined>(undefined
 
 export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentRole, setCurrentRole] = useState<UserRole>('owner');
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('csz_theme');
+    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+  });
   const [settings, setSettings] = useState<WorkshopSettings>(() => {
     const saved = localStorage.getItem('csz_settings');
     if (saved) {
@@ -173,6 +176,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => { localStorage.setItem('csz_invoices', JSON.stringify(invoices)); }, [invoices]);
   useEffect(() => { localStorage.setItem('csz_expenses', JSON.stringify(expenses)); }, [expenses]);
   useEffect(() => { localStorage.setItem('csz_users', JSON.stringify(users)); }, [users]);
+  useEffect(() => { localStorage.setItem('csz_theme', themeMode); }, [themeMode]);
 
   const activeUserName = 'المهندس طارق العلي (المالك)';
 

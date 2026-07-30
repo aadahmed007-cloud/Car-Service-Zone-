@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WorkshopProvider } from './context/WorkshopContext';
+import { WorkshopProvider, useWorkshop } from './context/WorkshopContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { FooterNav } from './components/layout/FooterNav';
@@ -26,6 +26,7 @@ import { NewPOModal } from './components/modals/NewPOModal';
 import { InvoiceModal } from './components/modals/InvoiceModal';
 
 export const AppContent: React.FC = () => {
+  const { themeMode } = useWorkshop();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string | null>(null);
 
@@ -51,7 +52,7 @@ export const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 flex flex-col font-cairo">
+    <div className={`min-h-screen bg-[#020617] text-slate-100 flex flex-col font-cairo theme-${themeMode}`}>
       
       {/* Top Navbar */}
       <Navbar

@@ -203,6 +203,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
+          {/* Theme Mode Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 transition-colors cursor-pointer"
+            title={themeMode === 'dark' ? 'التحول للوضع المضيء' : 'التحول للوضع المظلم'}
+          >
+            {themeMode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-blue-400" />}
+          </button>
+
           {/* Notifications Dropdown */}
           <div className="relative">
             <button
