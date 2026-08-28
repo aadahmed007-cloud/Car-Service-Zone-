@@ -156,11 +156,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [filteredInvoices]);
 
   const activeWorkOrders = React.useMemo(() => {
-    return filteredWorkOrders.filter(w => w.status === 'in_progress' || w.status === 'pending' || w.status === 'waiting_parts');
+    return filteredWorkOrders.filter(w => w.status === 'in_progress' || w.status === 'pending' || w.status === 'waiting_parts' || w.status === 'waiting_invoice');
   }, [filteredWorkOrders]);
 
   const readyWorkOrders = React.useMemo(() => {
     return filteredWorkOrders.filter(w => w.status === 'ready');
+  }, [filteredWorkOrders]);
+
+  const waitingInvoiceOrders = React.useMemo(() => {
+    return filteredWorkOrders.filter(w => w.status === 'waiting_invoice');
   }, [filteredWorkOrders]);
 
   const waitingPartsOrders = React.useMemo(() => {
@@ -193,6 +197,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     pending: { label: 'في الانتظار', bg: 'bg-amber-500/15 border-amber-500/30', text: 'text-amber-400' },
     in_progress: { label: 'قيد الإجراء', bg: 'bg-emerald-500/15 border-emerald-500/30', text: 'text-emerald-400' },
     waiting_parts: { label: 'بانتظار القطع', bg: 'bg-orange-500/15 border-orange-500/30', text: 'text-orange-400' },
+    waiting_invoice: { label: 'بانتظار الفاتورة', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
     ready: { label: 'جاهز للتسليم', bg: 'bg-amber-400/20 border-amber-400/40', text: 'text-amber-300' },
     delivered: { label: 'تم التسليم والفوترة', bg: 'bg-blue-500/15 border-blue-500/30', text: 'text-blue-400' },
     cancelled: { label: 'ملغي', bg: 'bg-red-500/15 border-red-500/30', text: 'text-red-400' }

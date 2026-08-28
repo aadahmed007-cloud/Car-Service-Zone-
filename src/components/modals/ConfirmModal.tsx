@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Trash2, CheckCircle2, Info, X } from 'lucide-react';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'danger' | 'warning' | 'info';
+  variant?: 'danger' | 'warning' | 'info' | 'success';
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -31,26 +31,36 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   const getVariantStyles = () => {
     switch (variant) {
+      case 'success':
+        return {
+          iconBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+          confirmBtn: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20 text-white',
+          Icon: CheckCircle2
+        };
       case 'warning':
         return {
           iconBg: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-          confirmBtn: 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 text-white'
+          confirmBtn: 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 text-white',
+          Icon: AlertTriangle
         };
       case 'info':
         return {
           iconBg: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-          confirmBtn: 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 text-white'
+          confirmBtn: 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20 text-white',
+          Icon: Info
         };
       case 'danger':
       default:
         return {
           iconBg: 'bg-red-500/10 text-red-400 border-red-500/30',
-          confirmBtn: 'bg-red-600 hover:bg-red-500 shadow-red-500/20 text-white'
+          confirmBtn: 'bg-red-600 hover:bg-red-500 shadow-red-500/20 text-white',
+          Icon: Trash2
         };
     }
   };
 
   const styles = getVariantStyles();
+  const HeaderIcon = styles.Icon;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -60,11 +70,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-2xl border ${styles.iconBg} shrink-0`}>
-              <AlertTriangle className="w-6 h-6" />
+              <HeaderIcon className="w-6 h-6" />
             </div>
             <div>
               <h3 className="text-base font-extrabold text-white">{title}</h3>
-              <p className="text-xs text-slate-400 mt-0.5">إجراء حساس يتطلب تأكيدك</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {variant === 'success' ? 'تأكيد إتمام العملية' : 'إجراء حساس يتطلب تأكيدك'}
+              </p>
             </div>
           </div>
           <button 
@@ -94,7 +106,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             onClick={handleConfirm}
             className={`flex items-center gap-2 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer ${styles.confirmBtn}`}
           >
-            <Trash2 className="w-4 h-4" />
+            <HeaderIcon className="w-4 h-4" />
             <span>{confirmText}</span>
           </button>
         </div>

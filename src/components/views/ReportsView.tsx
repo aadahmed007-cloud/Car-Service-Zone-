@@ -331,7 +331,7 @@ export const ReportsView: React.FC = () => {
                     <span className="font-bold text-white block">{p.name}</span>
                     <span className="text-[10px] text-slate-400 font-mono">{p.sku} • المتبقي: {p.quantityInStock}</span>
                   </div>
-                  <span className="font-extrabold text-orange-400">{p.unitPrice.toLocaleString('ar-EG')} {settings.currency}</span>
+                  <span className="font-extrabold text-orange-400">{(p.salePrice || p.purchasePrice || 0).toLocaleString('ar-EG')} {settings.currency}</span>
                 </div>
               ))
             )}

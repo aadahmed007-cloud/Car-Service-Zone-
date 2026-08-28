@@ -71,6 +71,7 @@ interface WorkshopContextType {
   receivePurchaseOrder: (poId: string) => void;
   
   // Invoices & Payments
+  updateInvoiceDiscount: (invoiceId: string, discount: number) => void;
   recordPayment: (invoiceId: string, amount: number, method: PaymentMethod, cashBoxName: string) => void;
   deleteInvoice: (id: string) => void;
   
@@ -302,6 +303,21 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return { ...wo, status, completionDate };
     }));
 
+    // Generate notification if waiting_invoice
+    if (status === 'waiting_invoice') {
+      const wo = workOrders.find(w => w.id === id);
+      if (wo) {
+        setNotifications(prev => [{
+          id: `not-${Date.now()}`,
+          title: '🔔 كارت صيانة بانتظار الفاتورة',
+          message: `أمر الشغل ${id} (${wo.vehicleName} - ${wo.plateNumber}) بانتظار الفاتورة بعد إدخال جميع قطع الغيار والمصنوعيات (${wo.finalCost} ${settings.currency}).`,
+          type: 'invoice',
+          date: 'الآن',
+          isRead: false
+        }, ...prev]);
+      }
+    }
+
     // Generate notification if ready
     if (status === 'ready') {
       const wo = workOrders.find(w => w.id === id);
@@ -325,10 +341,21 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
-    addLog('تغيير حالة كارت صيانة', `تغيير حالة الكارت ${id} إلى ${status}`);
+    addLog('تغيير حالة كارت صيانة', `تغيير حالة الكارت ${id} إلى ${status === 'waiting_invoice' ? 'بانتظار الفاتورة' : status}`);
+  };
+
+  const isWorkOrderLocked = (workOrderId: string): boolean => {
+    const wo = workOrders.find(w => w.id === workOrderId);
+    if (!wo) return false;
+    const inv = invoices.find(i => (i.workOrderId === workOrderId || i.id === wo.invoiceId));
+    return inv?.status === 'paid';
   };
 
   const addServiceToWorkOrder = (workOrderId: string, service: Omit<WorkOrderService, 'id'>) => {
+    if (isWorkOrderLocked(workOrderId)) {
+      alert('لا يمكن إضافة خدمات جديدة لأن كارت الصيانة مقفل مالياً والفاتورة مسددة بالكامل.');
+      return;
+    }
     const newService: WorkOrderService = {
       ...service,
       id: `wos-${Date.now()}`
@@ -337,16 +364,41 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (wo.id !== workOrderId) return wo;
       const services = [...wo.services, newService];
       const laborTotal = services.reduce((s, x) => s + x.cost, 0);
+      const finalCost = laborTotal + wo.partsTotal;
+      
+      // Auto-transition to waiting_invoice if both services and parts exist and status is active
+      const shouldBeWaitingInvoice = (wo.status === 'in_progress' || wo.status === 'pending' || wo.status === 'waiting_parts') && (wo.parts.length > 0);
+      const newStatus = shouldBeWaitingInvoice ? 'waiting_invoice' : wo.status;
+
+      if (shouldBeWaitingInvoice) {
+        setTimeout(() => {
+          setNotifications(nPrev => [{
+            id: `not-${Date.now()}`,
+            title: '🔔 كارت صيانة بانتظار الفاتورة',
+            message: `أمر الشغل ${wo.id} (${wo.vehicleName} - ${wo.plateNumber}) تحول تلقائياً إلى (بانتظار الفاتورة) بعد اكتمال إدخال قطع الغيار والمصنوعيات (${finalCost} ${settings.currency}). يرجى إصدار الفاتورة.`,
+            type: 'invoice',
+            date: 'الآن',
+            isRead: false
+          }, ...nPrev]);
+          addLog('تحديث تلقائي لحالة الكارت', `تحويل كارت الصيانة ${wo.id} إلى (بانتظار الفاتورة) لاكتمال إدخال قطع الغيار والخدمات`);
+        }, 0);
+      }
+
       return {
         ...wo,
         services,
         laborTotal,
-        finalCost: laborTotal + wo.partsTotal
+        finalCost,
+        status: newStatus
       };
     }));
   };
 
   const removeServiceFromWorkOrder = (workOrderId: string, serviceId: string) => {
+    if (isWorkOrderLocked(workOrderId)) {
+      alert('لا يمكن حذف أو تعديل الخدمات لأن كارت الصيانة مقفل مالياً والفاتورة مسددة بالكامل.');
+      return;
+    }
     setWorkOrders(prev => prev.map(wo => {
       if (wo.id !== workOrderId) return wo;
       const services = wo.services.filter(s => s.id !== serviceId);
@@ -361,6 +413,10 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const addPartToWorkOrder = (workOrderId: string, partId: string, qty: number) => {
+    if (isWorkOrderLocked(workOrderId)) {
+      alert('لا يمكن صرف قطع غيار جديدة لأن كارت الصيانة مقفل مالياً والفاتورة مسددة بالكامل.');
+      return;
+    }
     const targetPart = parts.find(p => p.id === partId);
     if (!targetPart) return;
 
@@ -394,11 +450,32 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (wo.id !== workOrderId) return wo;
       const woParts = [...wo.parts, newWop];
       const partsTotal = woParts.reduce((s, x) => s + x.totalPrice, 0);
+      const finalCost = wo.laborTotal + partsTotal;
+
+      // Auto-transition to waiting_invoice if both services and parts exist and status is active
+      const shouldBeWaitingInvoice = (wo.status === 'in_progress' || wo.status === 'pending' || wo.status === 'waiting_parts') && (wo.services.length > 0);
+      const newStatus = shouldBeWaitingInvoice ? 'waiting_invoice' : wo.status;
+
+      if (shouldBeWaitingInvoice) {
+        setTimeout(() => {
+          setNotifications(nPrev => [{
+            id: `not-${Date.now()}`,
+            title: '🔔 كارت صيانة بانتظار الفاتورة',
+            message: `أمر الشغل ${wo.id} (${wo.vehicleName} - ${wo.plateNumber}) تحول تلقائياً إلى (بانتظار الفاتورة) بعد اكتمال إدخال قطع الغيار والمصنوعيات (${finalCost} ${settings.currency}). يرجى إصدار الفاتورة.`,
+            type: 'invoice',
+            date: 'الآن',
+            isRead: false
+          }, ...nPrev]);
+          addLog('تحديث تلقائي لحالة الكارت', `تحويل كارت الصيانة ${wo.id} إلى (بانتظار الفاتورة) لاكتمال إدخال قطع الغيار والمصنوعيات`);
+        }, 0);
+      }
+
       return {
         ...wo,
         parts: woParts,
         partsTotal,
-        finalCost: wo.laborTotal + partsTotal
+        finalCost,
+        status: newStatus
       };
     }));
 
@@ -406,6 +483,10 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const removePartFromWorkOrder = (workOrderId: string, workOrderPartId: string) => {
+    if (isWorkOrderLocked(workOrderId)) {
+      alert('لا يمكن حذف أو إرجاع قطع الغيار لأن كارت الصيانة مقفل مالياً والفاتورة مسددة بالكامل.');
+      return;
+    }
     const targetWo = workOrders.find(w => w.id === workOrderId);
     if (!targetWo) return;
     const targetWop = targetWo.parts.find(p => p.id === workOrderPartId);
@@ -440,13 +521,6 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const wo = workOrders.find(w => w.id === workOrderId);
     if (!wo) return null;
 
-    if (wo.invoiceId) {
-      const existing = invoices.find(i => i.id === wo.invoiceId);
-      if (existing) return existing;
-    }
-
-    const nextInvNo = invoices.length + 43;
-    const invId = `${settings.invoicePrefix}${String(nextInvNo).padStart(3, '0')}`;
     const subtotal = wo.finalCost;
     const taxAmount = (subtotal - discount) * (settings.vatPercentage / 100);
     const totalAmount = (subtotal - discount) + taxAmount;
@@ -455,6 +529,32 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       ...wo.services.map(s => ({ description: s.serviceName, amount: s.cost })),
       ...wo.parts.map(p => ({ description: `${p.partName} (${p.quantity} قطعة)`, amount: p.totalPrice }))
     ];
+
+    if (wo.invoiceId) {
+      const existing = invoices.find(i => i.id === wo.invoiceId);
+      if (existing) {
+        if (existing.status === 'unpaid') {
+          const updatedInvoice: Invoice = {
+            ...existing,
+            subtotal,
+            discount,
+            taxAmount,
+            totalAmount,
+            remainingAmount: totalAmount,
+            itemsSummary,
+            vehicleName: `${wo.vehicleName} - ${wo.plateNumber}`,
+            plateNumber: wo.plateNumber,
+            customerName: wo.customerName
+          };
+          setInvoices(prev => prev.map(inv => inv.id === existing.id ? updatedInvoice : inv));
+          return updatedInvoice;
+        }
+        return existing;
+      }
+    }
+
+    const nextInvNo = invoices.length + 43;
+    const invId = `${settings.invoicePrefix}${String(nextInvNo).padStart(3, '0')}`;
 
     const newInvoice: Invoice = {
       id: invId,
@@ -644,6 +744,26 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // Payment Recording
+  const updateInvoiceDiscount = (invoiceId: string, discount: number) => {
+    setInvoices(prev => prev.map(inv => {
+      if (inv.id !== invoiceId) return inv;
+      const subtotal = inv.subtotal;
+      const taxAmount = (subtotal - discount) * (settings.vatPercentage / 100);
+      const totalAmount = (subtotal - discount) + taxAmount;
+      const remainingAmount = Math.max(0, totalAmount - inv.paidAmount);
+      const status = remainingAmount === 0 && inv.paidAmount > 0 ? 'paid' : (inv.paidAmount > 0 ? 'partial' : 'unpaid');
+      
+      return {
+        ...inv,
+        discount,
+        taxAmount,
+        totalAmount,
+        remainingAmount,
+        status
+      };
+    }));
+  };
+
   const recordPayment = (invoiceId: string, amount: number, method: PaymentMethod, cashBoxName: string) => {
     setInvoices(prev => prev.map(inv => {
       if (inv.id !== invoiceId) return inv;
@@ -670,6 +790,9 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const inv = invoices.find(i => i.id === id);
     if (inv && inv.paidAmount > 0 && inv.cashBox) {
       setCashBoxes(prev => prev.map(cb => cb.name === inv.cashBox ? { ...cb, balance: Math.max(0, cb.balance - inv.paidAmount) } : cb));
+    }
+    if (inv && inv.workOrderId) {
+      setWorkOrders(prev => prev.map(w => w.id === inv.workOrderId ? { ...w, invoiceId: undefined } : w));
     }
     setInvoices(prev => prev.filter(inv => inv.id !== id));
     addLog('حذف فاتورة', `تم حذف الفاتورة ${id}`);
@@ -819,7 +942,7 @@ export const WorkshopProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       deleteWorkOrder,
       addPart, updatePart, deletePart, adjustPartStock,
       addSupplier, deleteSupplier, addPurchaseOrder, receivePurchaseOrder,
-      recordPayment, deleteInvoice,
+      updateInvoiceDiscount, recordPayment, deleteInvoice,
       addExpense, deleteExpense,
       markAllNotificationsRead, resetAllData, clearAllDemoData, exportDatabase, importDatabase
     }}>

@@ -4,6 +4,7 @@ export type WorkOrderStatus =
   | 'pending'         // قيد الانتظار
   | 'in_progress'     // جاري الصيانة
   | 'waiting_parts'   // بانتظار قطع الغيار
+  | 'waiting_invoice' // بانتظار الفاتورة
   | 'ready'           // جاهز للتسليم
   | 'delivered'       // تم التسليم والفوترة
   | 'cancelled';      // ملغي

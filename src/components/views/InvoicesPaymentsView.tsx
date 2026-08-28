@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Receipt, Search, Printer, CheckCircle2, DollarSign, 
-  CreditCard, Building, ArrowRight, ShieldCheck, Wallet, FileText, Trash2 
+  CreditCard, Building, ArrowRight, ShieldCheck, Wallet, FileText, Trash2, Wrench 
 } from 'lucide-react';
 import { useWorkshop } from '../../context/WorkshopContext';
 import { Invoice, PaymentMethod } from '../../types';
@@ -12,17 +12,21 @@ interface InvoicesPaymentsViewProps {
 }
 
 export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOpenInvoiceModal }) => {
-  const { invoices, recordPayment, deleteInvoice, cashBoxes, settings } = useWorkshop();
+  const { invoices, workOrders, recordPayment, updateWorkOrderStatus, deleteInvoice, cashBoxes, settings } = useWorkshop();
 
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(invoices[0]?.id || null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Confirmation Modal state
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
     title: string;
     message: string;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'danger' | 'warning' | 'info' | 'success';
     onConfirm: () => void;
   }>({
     isOpen: false,
@@ -31,18 +35,27 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
     onConfirm: () => {}
   });
 
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   const handleDeleteInvoiceClick = (e: React.MouseEvent, inv: Invoice) => {
     e.stopPropagation();
     setConfirmConfig({
       isOpen: true,
       title: `حذف الفاتورة: ${inv.id}`,
       message: `هل أنت تأكد من رغبتك في حذف الفاتورة رقم (${inv.id}) الصادرة للعميل (${inv.customerName}) بقيمة (${inv.totalAmount} ${settings.currency})؟ الإجراء لا يمكن التراجع عنه.`,
+      confirmText: 'تأكيد الحذف النهائي',
+      cancelText: 'إلغاء',
+      variant: 'danger',
       onConfirm: () => {
         deleteInvoice(inv.id);
         if (selectedInvoiceId === inv.id) {
           const nextInv = invoices.find(i => i.id !== inv.id);
           setSelectedInvoiceId(nextInv ? nextInv.id : null);
         }
+        showToast(`تم حذف الفاتورة (${inv.id}) بنجاح.`);
       }
     });
   };
@@ -50,9 +63,28 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
   // Payment form state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [selectedCashBox, setSelectedCashBox] = useState<string>('الخزينة الرئيسية');
-  const [discountAmount, setDiscountAmount] = useState<number>(150);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+
+  const { updateInvoiceDiscount } = useWorkshop();
 
   const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId) || invoices[0] || null;
+  const linkedWorkOrder = selectedInvoice?.workOrderId 
+    ? workOrders.find(w => w.id === selectedInvoice.workOrderId) 
+    : null;
+
+  // Sync discount amount when invoice changes
+  React.useEffect(() => {
+    if (selectedInvoice) {
+      setDiscountAmount(selectedInvoice.discount);
+    }
+  }, [selectedInvoice?.id]);
+
+  const handleApplyDiscount = () => {
+    if (selectedInvoice) {
+      updateInvoiceDiscount(selectedInvoice.id, discountAmount);
+      showToast('تم تطبيق الخصم وإعادة احتساب الفاتورة');
+    }
+  };
 
   const filteredInvoices = invoices.filter(inv => {
     const matchesStatus = filterStatus === 'all' || inv.status === filterStatus;
@@ -62,10 +94,42 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
     return matchesStatus && matchesSearch;
   });
 
+  const handlePrintInvoice = () => {
+    if (!selectedInvoice) return;
+    
+    // Print invoice
+    window.print();
+
+    // If there is an associated work order that is still open, prompt to close maintenance
+    if (linkedWorkOrder && linkedWorkOrder.status !== 'delivered') {
+      setTimeout(() => {
+        setConfirmConfig({
+          isOpen: true,
+          title: `تأكيد قفل كارت الصيانة وتسليم السيارة`,
+          message: `تمت طباعة الفاتورة (${selectedInvoice.id}). هل ترغب في قفل أمر الشغل (${linkedWorkOrder.id}) وإنهاء صيانة سيارة العميل (${linkedWorkOrder.customerName} - ${linkedWorkOrder.plateNumber}) وتأكيد تسليمها للعميل الآن؟`,
+          confirmText: 'نعم، إغلاق الصيانة والتسليم',
+          cancelText: 'إبقاء أمر الشغل مفتوحاً',
+          variant: 'success',
+          onConfirm: () => {
+            updateWorkOrderStatus(linkedWorkOrder.id, 'delivered');
+            showToast(`تم قفل كارت الصيانة (${linkedWorkOrder.id}) وتسليم السيارة للعميل بنجاح.`);
+          }
+        });
+      }, 300);
+    }
+  };
+
   const handleCollectAndClose = () => {
     if (!selectedInvoice) return;
     recordPayment(selectedInvoice.id, selectedInvoice.remainingAmount, paymentMethod, selectedCashBox);
-    alert(`تم تحصيل المبلغ (${selectedInvoice.remainingAmount} ${settings.currency}) بنجاح وتسجيل العملية بالخزينة.`);
+    
+    // If there is a linked work order that is not delivered, also prompt/deliver it
+    if (linkedWorkOrder && linkedWorkOrder.status !== 'delivered') {
+      updateWorkOrderStatus(linkedWorkOrder.id, 'delivered');
+      showToast(`تم تحصيل الفاتورة وإغلاق أمر الشغل (${linkedWorkOrder.id}) وتسليم السيارة للعميل بنجاح!`);
+    } else {
+      showToast(`تم تحصيل المبلغ (${selectedInvoice.remainingAmount} ${settings.currency}) بنجاح وإيداعه في ${selectedCashBox}.`);
+    }
   };
 
   return (
@@ -114,22 +178,29 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
                     <span className="font-bold text-slate-200 text-sm">{selectedInvoice.subtotal.toLocaleString('ar-EG')} {settings.currency}</span>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 border-t border-slate-800 pt-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-800 pt-2">
                     <span className="text-slate-400 font-bold">الخصم</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-end gap-1">
                       <input
                         type="number"
                         value={discountAmount}
                         onChange={e => setDiscountAmount(parseFloat(e.target.value) || 0)}
-                        className="w-24 bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-center font-bold text-white focus:outline-none"
+                        className="w-20 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-center font-bold text-white focus:outline-none"
                       />
-                      <span className="text-slate-400">{settings.currency}</span>
+                      <span className="text-slate-400 text-[10px] ml-1">{settings.currency}</span>
+                      <button 
+                        onClick={handleApplyDiscount}
+                        disabled={discountAmount === selectedInvoice.discount}
+                        className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 text-white px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        تطبيق
+                      </button>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between border-t border-slate-800 pt-2 text-orange-400">
                     <span className="font-extrabold text-sm">الإجمالي النهائي</span>
-                    <span className="text-2xl font-extrabold">{Math.max(0, selectedInvoice.subtotal - discountAmount).toLocaleString('ar-EG')} {settings.currency}</span>
+                    <span className="text-2xl font-extrabold">{selectedInvoice.totalAmount.toLocaleString('ar-EG')} {settings.currency}</span>
                   </div>
                 </div>
 
@@ -206,7 +277,7 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
                 </button>
 
                 <button
-                  onClick={() => window.print()}
+                  onClick={handlePrintInvoice}
                   className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs py-3.5 rounded-2xl shadow-xl shadow-blue-600/20 cursor-pointer transition-all active:scale-95"
                 >
                   <Printer className="w-4 h-4" />
@@ -281,6 +352,14 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
 
       </div>
 
+      {/* Success Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-5 left-5 z-50 bg-slate-900 text-white font-bold text-xs px-4 py-3.5 rounded-2xl shadow-2xl flex items-center gap-2 border border-emerald-500/40 animate-pulse">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span className="text-slate-100">{toastMessage}</span>
+        </div>
+      )}
+
       {/* Confirmation Dialog */}
       <ConfirmModal
         isOpen={confirmConfig.isOpen}
@@ -288,6 +367,9 @@ export const InvoicesPaymentsView: React.FC<InvoicesPaymentsViewProps> = ({ onOp
         onConfirm={confirmConfig.onConfirm}
         title={confirmConfig.title}
         message={confirmConfig.message}
+        confirmText={confirmConfig.confirmText}
+        cancelText={confirmConfig.cancelText}
+        variant={confirmConfig.variant}
       />
 
     </div>
